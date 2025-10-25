@@ -1,9 +1,59 @@
 import axios from 'axios';
 import { describe, expect, test } from 'vitest';
-
 import { testCorsForRoute } from './helpers/cors';
 
 describe('/cep/v1 (E2E)', () => {
+  test('Bloqueio por user-agent', async () => {
+    const requestUrl = `${global.SERVER_URL}/api/cep/v1/52010000`;
+
+    await expect(
+      axios.get(requestUrl, {
+        headers: { 'user-agent': 'Go-http-client/2.0' },
+      })
+    ).rejects.toMatchObject({
+      response: {
+        status: 429,
+        data: expect.stringContaining('please stop abusing our public API'),
+      },
+    });
+  });
+
+  test('Bloqueio por IP', async () => {
+    const requestUrl = `${global.SERVER_URL}/api/cep/v1/52010000`;
+
+    await expect(
+      axios.get(requestUrl, {
+        headers: {
+          'x-forwarded-for': '127.0.0.1',
+          'user-agent': 'Go-http-client/2.0',
+        },
+      })
+    ).rejects.toMatchObject({
+      response: {
+        status: 429,
+        data: expect.stringContaining('please stop abusing our public API'),
+      },
+    });
+  });
+
+  test('Acesso com cabeçalhos incompletos', async () => {
+    const requestUrl = `${global.SERVER_URL}/api/cep/v1/05010000`;
+
+    const response = await axios.get(requestUrl, {
+      headers: {},
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.data).toEqual({
+      cep: '05010000',
+      state: 'SP',
+      city: 'São Paulo',
+      neighborhood: 'Perdizes',
+      street: 'Rua Caiubi',
+      service: expect.any(String),
+    });
+  });
+
   test('Verifica CORS', async () => {
     const requestUrl = `${global.SERVER_URL}/api/cep/v1/05010000`;
     const response = await axios.get(requestUrl);
